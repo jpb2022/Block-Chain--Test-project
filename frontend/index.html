@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NFT Fundraiser</title>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.6.1/dist/web3.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        text-align: center;
+        background-color: #f4f4f9;
+      }
+
+      .container {
+        margin: 50px auto;
+        padding: 20px;
+        max-width: 600px;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+
+      h1 {
+        color: #333;
+      }
+
+      button {
+        padding: 10px 20px;
+        margin: 10px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        background-color: #ccc;
+      }
+
+      .status {
+        margin-top: 20px;
+        font-size: 1.2em;
+      }
+
+      .status.success {
+        color: green;
+      }
+
+      .status.error {
+        color: red;
+      }
+
+      .input-field {
+        padding: 10px;
+        margin: 10px;
+        width: 80%;
+        max-width: 400px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+
+      .footer {
+        margin-top: 50px;
+        font-size: 0.9em;
+        color: #777;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>NFT Fundraiser Campaign</h1>
+      <p id="campaignStatus">Campaign Status: <strong>Loading...</strong></p>
+      <p id="totalFundsRaised">Total Funds Raised: 0 ETH</p>
+      <p id="donationGoal">Donation Goal: 0 ETH</p>
+
+      <h3>Donate to the Campaign</h3>
+      <input
+        type="number"
+        id="donationAmount"
+        class="input-field"
+        placeholder="Enter donation amount (ETH)"
+      />
+      <button id="donateButton">Donate and Mint NFT</button>
+
+      <div class="status" id="statusMessage"></div>
+
+      <h3>Your NFT Token ID</h3>
+      <p id="yourTokenId">You haven't donated yet</p>
+    </div>
+
+    <div class="footer">
+      <p>Powered by Ethereum & NFT</p>
+    </div>
+
+    <script>
+      // Initialize Web3 and contract
+      let web3;
+      let contract;
+      let account;
+      let contractAddress = "0x6c8E26e56Ae7925f5d19E603b4BfF426089eCF49";
+      let campaignOwner;
+      let donationGoal;
+      let totalFundsRaised;
+      let fundraiserEnded;
+
+      const contractABI = window.addEventListener("load", async () => {
+        // Check if MetaMask is installed
+        if (typeof window.ethereum !== "undefined") {
+          web3 = new Web3(window.ethereum);
+          try {
+            await ethereum.request({ method: "eth_requestAccounts" });
+            account = (await web3.eth.getAccounts())[0];
+            contract = new web3.eth.Contract(contractABI, contractAddress);
+            setupApp();
+          } catch (error) {
+            console.error("Error connecting to MetaMask:", error);
+            alert("Please connect your MetaMask wallet.");
+          }
+        } else {
+          alert("Please install MetaMask to use this app.");
+        }
+      });
+
+      async function setupApp() {
+        // Get campaign details
+        campaignOwner = await contract.methods.campaignOwner().call();
+        donationGoal = await contract.methods.donationGoal().call();
+        totalFundsRaised = await contract.methods.totalFundsRaised().call();
+        fundraiserEnded = await contract.methods.fundraiserEnded().call();
+
+        // Update UI with campaign details
+        document.getElementById(
+          "campaignStatus"
+        ).innerText = `Campaign Status: ${
+          fundraiserEnded ? "Ended" : "Ongoing"
+        }`;
+        document.getElementById(
+          "donationGoal"
+        ).innerText = `Donation Goal: ${web3.utils.fromWei(
+          donationGoal.toString()
+        )} ETH`;
+        document.getElementById(
+          "totalFundsRaised"
+        ).innerText = `Total Funds Raised: ${web3.utils.fromWei(
+          totalFundsRaised.toString()
+        )} ETH`;
+
+        // Enable or disable donate button based on fundraiser status
+        document.getElementById("donateButton").disabled = fundraiserEnded;
+      }
+
+      // Handle donation and mint NFT
+      document
+        .getElementById("donateButton")
+        .addEventListener("click", async () => {
+          const donationAmount =
+            document.getElementById("donationAmount").value;
+          if (!donationAmount || parseFloat(donationAmount) <= 0) {
+            alert("Please enter a valid donation amount");
+            return;
+          }
+
+          try {
+            const donationInWei = web3.utils.toWei(donationAmount, "ether");
+            await contract.methods.donateAndMintNFT().send({
+              from: account,
+              value: donationInWei,
+            });
+            document.getElementById("statusMessage").classList.add("success");
+            document.getElementById(
+              "statusMessage"
+            ).innerText = `Thank you for your donation of ${donationAmount} ETH!`;
+            getYourTokenId();
+            setupApp();
+          } catch (error) {
+            console.error("Error donating:", error);
+            document.getElementById("statusMessage").classList.add("error");
+            document.getElementById("statusMessage").innerText =
+              "Donation failed. Please try again.";
+          }
+        });
+
+      async function getYourTokenId() {
+        // Get the most recent NFT token ID for the donor
+        const balance = await contract.methods.balanceOf(account).call();
+        if (balance > 0) {
+          const tokenId = await contract.methods
+            .tokenOfOwnerByIndex(account, balance - 1)
+            .call();
+          document.getElementById(
+            "yourTokenId"
+          ).innerText = `Your Token ID: ${tokenId}`;
+        } else {
+          document.getElementById("yourTokenId").innerText =
+            "You haven't donated yet.";
+        }
+      }
+    </script>
+  </body>
+</html>
